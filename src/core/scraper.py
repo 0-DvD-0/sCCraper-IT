@@ -10,15 +10,14 @@ from src.core.utils import (
     get_data_dir
 )
 
-def fetch_and_save_challenges(session: Session) -> tuple[dict[str, Any], dict[str, Any] | None]:
+def fetch_and_save_challenges(session: Session, output_dir: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """
     Fetches new data and loads old data if it exists.
     Returns: (new_data, old_data)
     """
     new_data = session.api_get("challenges")
-    data_dir = get_data_dir()
-    ensure_dir(data_dir)
-    file_path = os.path.join(data_dir, 'challenges.json')
+    ensure_dir(output_dir)
+    file_path = os.path.join(output_dir, 'challenges.json')
 
     old_data = None
     if os.path.exists(file_path):
@@ -64,12 +63,12 @@ def get_new_challenge_ids(new_data: dict, old_data: dict | None) -> set[int]:
     return new_ids - old_ids
 
 
-def process_challenge(session: Session, challenge: dict[str, Any], event: str, section: str):
+def process_challenge(session: Session, challenge: dict[str, Any], event: str, section: str, output_dir: str):
     """
     Process current given challenge, downloading it's metadata (in JSON format) and any attached files.
     """
     title = challenge["title"]
-    challenge_dir = get_challenge_dir(event, section, title)
+    challenge_dir = get_challenge_dir(output_dir, event, section, title)
     ensure_dir(challenge_dir)
 
     challenge_data = fetch_challenge_data(session, challenge["id"])
@@ -98,7 +97,7 @@ def process_challenge(session: Session, challenge: dict[str, Any], event: str, s
 
 
 
-def scrape_all(session: Session, challenge_data: dict[str, Any],filter_event: str | None = None,filter_tags: list[str]| None = None, target_ids: set[int] | None = None):
+def scrape_all(session: Session, challenge_data: dict[str, Any],output_dir, filter_event: str | None = None,filter_tags: list[str]| None = None, target_ids: set[int] | None = None):
     """
     Iterates through all challenges, downloading their metadata (in JSON format) and any attached files.
     Each challenge is stored in its own subdirectory within a central output folder. With a progress bar.
@@ -140,5 +139,6 @@ def scrape_all(session: Session, challenge_data: dict[str, Any],filter_event: st
             session, 
             task["challenge"], 
             task["event"], 
-            task["section"]
+            task["section"],
+            output_dir
         )

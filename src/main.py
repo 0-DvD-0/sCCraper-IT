@@ -15,6 +15,7 @@ def main():
     parser.add_argument("-e","--event",type=str, help="Filter by event name")
     parser.add_argument("-t", "--tags", nargs="+", help="Filter by one or more tags (-t web pwn)")
     parser.add_argument("-l", "--list", action="store_true", help="List all available events and their sections")
+    parser.add_argument("-o", "--output", type=str, default="data",help="Output directory (default: ./data)")
     args = parser.parse_args()
     try:
 
@@ -22,6 +23,7 @@ def main():
     except Exception as e:
         print(f"[-] Login failed: {e}")
         sys.exit(1)
+
     if args.submit:
         if not args.id:
             print("[-] Error: Specify the challenge ID using --id [ID] to submit a flag.")
@@ -43,7 +45,7 @@ def main():
         
         return
 
-    new_challenges, old_challenges = fetch_and_save_challenges(session)
+    new_challenges, old_challenges = fetch_and_save_challenges(session,args.output)
     
     if args.list:
         print(f"\n{'-'*30}")
@@ -82,6 +84,7 @@ def main():
         target_ids=target_ids,
         filter_event=args.event,
         filter_tags=args.tags,
+        output_dir=args.output
     )
 
 

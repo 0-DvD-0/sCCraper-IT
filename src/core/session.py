@@ -54,3 +54,15 @@ class Session:
             resp = self.session.get(f"{self.base_url}{file_url}{self.token_download}")
             f.write(resp.content)
 
+
+    def submit_flag(self, challenge_id: int, flag: str)->dict[str, Any]:
+        """
+        Submits a flag for a specific challenge.
+        """
+        payload = {"flag": flag}
+        resp = self.session.post(
+            f"{self.base_url}/api/challenges/{challenge_id}/flag", 
+            json=payload, 
+            headers=self.token_auth
+        )
+        return resp.json()

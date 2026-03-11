@@ -10,6 +10,7 @@ def main():
     
     # Modes
     parser.add_argument("-n", "--new", action="store_true", help="Only download challenges not present in local challenges.json")
+    parser.add_argument("-s", "--submit", type=str, help="Submit a flag for the challenge specified by --id")
     parser.add_argument("-i","--id",type=int, help="Download a specific challenge by ID")
     parser.add_argument("-e","--event",type=str, help="Filter by event name")
     parser.add_argument("-t", "--tags", nargs="+", help="Filter by one or more tags (-t web pwn)")
@@ -20,7 +21,27 @@ def main():
     except Exception as e:
         print(f"[-] Login failed: {e}")
         sys.exit(1)
-    
+    if args.submit:
+        if not args.id:
+            print("[-] Error: Specify the challenge ID using --id [ID] to submit a flag.")
+            sys.exit(1)
+
+        print(f"[*] Submitting flag for challenge {args.id}...")
+        result = session.submit_flag(args.id, args.submit)
+        
+        is_valid = result.get("valid")
+        
+        if is_valid is True:
+            print(f"[+]  Flag is CORRECT!")
+        elif is_valid is False:
+            print(f"[-] Flag is WRONG.")
+        else:
+            # Handle potential 500 error or unexpected response
+            msg = result.get('message', 'Unknown error occurred.')
+            print(f"[-]  Server response: {msg}")
+        
+        return
+
     new_challenges, old_challenges = fetch_and_save_challenges(session)
     
     target_ids = None

@@ -1,4 +1,5 @@
 import os
+import json
 from typing import Any
 from src.core.session import Session
 from src.core.utils import (
@@ -8,19 +9,26 @@ from src.core.utils import (
     get_data_dir
 )
 
-def fetch_and_save_challenges(session: Session) -> dict[str, Any]:
+def fetch_and_save_challenges(session: Session) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """
-    Fetches and saves the metadata of all challenges in a JSON file.
+    Fetches new data and loads old data if it exists.
+    Returns: (new_data, old_data)
     """
-    data = session.api_get("challenges")
+    new_data = session.api_get("challenges")
     data_dir = get_data_dir()
     ensure_dir(data_dir)
+    file_path = os.path.join(data_dir, 'challenges.json')
 
-    data__file_path = os.path.join(data_dir, 'challenges.json')
-    save_json(data__file_path, data)
+    old_data = None
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            try:
+                old_data = json.load(f)
+            except json.JSONDecodeError:
+                old_data = None
 
-    return data
-
+    save_json(file_path, new_data)
+    return new_data, old_data
 
 def fetch_challenge_data(session: Session, challenge_id: int) -> dict[str, Any]:
     """
@@ -34,6 +42,25 @@ def fetch_challenge_hints(session: Session, challenge_hints: list[dict[str, Any]
     Fetches all hints for the given challenge from the API as a List
     """
     return [session.api_get(f"hint/{hint['id']}") for hint in challenge_hints]
+
+def get_new_challenge_ids(new_data: dict, old_data: dict | None) -> set[int]:
+    """
+    Extracts IDs from both datasets and returns only the ones present in 'new' but not 'old'.
+    """
+    def extract_ids(data):
+        ids = set()
+        for event in data.get('events', []):
+            for section in event.get('sections', []):
+                for chal in section.get('challenges', []):
+                    ids.add(chal['id'])
+        return ids
+
+    new_ids = extract_ids(new_data)
+    if not old_data:
+        return new_ids
+    
+    old_ids = extract_ids(old_data)
+    return new_ids - old_ids
 
 
 def process_challenge(session: Session, challenge: dict[str, Any], event: str, section: str):

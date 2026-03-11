@@ -14,6 +14,7 @@ def main():
     parser.add_argument("-i","--id",type=int, help="Download a specific challenge by ID")
     parser.add_argument("-e","--event",type=str, help="Filter by event name")
     parser.add_argument("-t", "--tags", nargs="+", help="Filter by one or more tags (-t web pwn)")
+    parser.add_argument("-l", "--list", action="store_true", help="List all available events and their sections")
     args = parser.parse_args()
     try:
 
@@ -44,6 +45,25 @@ def main():
 
     new_challenges, old_challenges = fetch_and_save_challenges(session)
     
+    if args.list:
+        print(f"\n{'-'*30}")
+        print(f" Available Events:")
+        print(f"{'-'*30}")
+        
+        for event in new_challenges.get('events', []):
+            event_name = event.get('name', 'Unknown Event')
+            sections = [s.get('name') for s in event.get('sections', [])]
+            
+            print(f"\n Event:  {event_name}")
+            if sections:
+                print(f"  Sections: {', '.join(sections)}")
+            
+            count = sum(len(s.get('challenges', [])) for s in event.get('sections', []))
+            print(f"    Challenges: {count}")
+            
+        print(f"\n{'-'*30}\n")
+        return
+
     target_ids = None
 
     if args.id:

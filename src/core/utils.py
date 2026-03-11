@@ -21,11 +21,11 @@ def get_data_dir():
     return os.path.join(DATA_DIR)
 
 
-def get_challenge_dir(event: str, section: str, title: str) -> str:
+def get_challenge_dir(base_dir: str, event: str, section: str, title: str) -> str:
     """
     Returns directory path for a challenge.
     """
-    return os.path.join(DATA_DIR, 'challenges', clean_filename(event), clean_filename(section), clean_filename(title))
+    return os.path.join(base_dir, 'challenges', clean_filename(event), clean_filename(section), clean_filename(title))
 
 
 def ensure_dir(path: str):

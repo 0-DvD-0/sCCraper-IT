@@ -47,7 +47,15 @@ PASSWORD=your-password
 ```
 
 ## ✅ Usage
+Recommended: Global CLI (pipx)
 
+This is the preferred method for Linux and macOS. It handles dependencies automatically and allows you to run sccraper from any directory.
+
+pipx install .
+
+Manual: Standard Script (python -m)
+
+If you prefer not to install the tool globally, or are working in a temporary virtual environment, you can run it as a standard module.
 ### Install dependencies:
 
 ```bash

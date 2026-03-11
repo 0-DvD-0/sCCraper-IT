@@ -73,12 +73,21 @@ def process_challenge(session: Session, challenge: dict[str, Any], event: str, s
     ensure_dir(challenge_dir)
 
     challenge_data = fetch_challenge_data(session, challenge["id"])
+    challenge_description = challenge_data.get("description", "No description provided.")
+
+    #Create the Markdown content
+    md_content = f"# {title}\n\n{challenge_description}\n"
 
     if session.group == "SUPERVISOR":
-        challenge_data['hints'] = fetch_challenge_hints(session, challenge_data['hints'])
+        hints = fetch_challenge_hints(session, challenge_data['hints'])
+        md_content += "\n\n## Hints\n"
+        for i, hint in enumerate(hints):
+            md_content += f"- **Hint {i}**: {hint.get('content','No content')}\n"
 
-    save_json(os.path.join(challenge_dir, f"{clean_filename(title)}.json"), challenge_data)
-
+    md_file_path = os.path.join(challenge_dir, "README.md")
+    with open(md_file_path,"w") as f:
+        f.write(md_content)
+     
     files_dir = os.path.join(challenge_dir, 'files')
 
     for file in challenge_data['files']: 

@@ -1,4 +1,5 @@
 import os
+from tqdm import tqdm
 import json
 from typing import Any
 from src.core.session import Session
@@ -85,15 +86,39 @@ def process_challenge(session: Session, challenge: dict[str, Any], event: str, s
         file_path = os.path.join(files_dir, file['name'])
         session.download_file(file['url'], file_path)
     
-    print(f'Done downloading: {title}')
 
 
 def scrape_all(session: Session, challenge_data: dict[str, Any]):
     """
     Iterates through all challenges, downloading their metadata (in JSON format) and any attached files.
-    Each challenge is stored in its own subdirectory within a central output folder.
+    Each challenge is stored in its own subdirectory within a central output folder. With a progress bar.
     """
-    for event in challenge_data['events']:
-        for section in event['sections']:
-            for challenge in section['challenges']:   
-                process_challenge(session, challenge, event['name'], section['name'])
+    tasks = []
+    for event in challenge_data.get('events',[]):
+        event_name = event.get('name', 'Unknown Event')
+        for section in event.get('sections',[]):
+            section_name = section.get('name', 'Unknown Section')
+            for challenge in section.get('challenges',[]):
+                tasks.append({
+                    "challenge": challenge,
+                    "event": event_name,
+                    "section": section_name
+                })
+    if not tasks:
+        print("[-] No challenges found to download.")
+        return
+    # Initialize the progress bar
+    pbar = tqdm(tasks, unit="chal")
+
+    for task in pbar:
+        title = task["challenge"]["title"]
+        
+        # Update the text on the left of the bar
+        pbar.set_description(f"Downloading: {title[:20].ljust(20)}")
+        
+        process_challenge(
+            session, 
+            task["challenge"], 
+            task["event"], 
+            task["section"]
+        )

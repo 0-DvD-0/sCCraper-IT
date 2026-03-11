@@ -97,7 +97,8 @@ def process_challenge(session: Session, challenge: dict[str, Any], event: str, s
     
 
 
-def scrape_all(session: Session, challenge_data: dict[str, Any]):
+
+def scrape_all(session: Session, challenge_data: dict[str, Any],filter_event: str | None = None,filter_tags: list[str]| None = None, target_ids: set[int] | None = None):
     """
     Iterates through all challenges, downloading their metadata (in JSON format) and any attached files.
     Each challenge is stored in its own subdirectory within a central output folder. With a progress bar.
@@ -105,9 +106,19 @@ def scrape_all(session: Session, challenge_data: dict[str, Any]):
     tasks = []
     for event in challenge_data.get('events',[]):
         event_name = event.get('name', 'Unknown Event')
+        if filter_event and filter_event not in event_name:
+            continue
         for section in event.get('sections',[]):
             section_name = section.get('name', 'Unknown Section')
             for challenge in section.get('challenges',[]):
+                chal_id = int(challenge['id'])
+                if target_ids is not None and chal_id not in target_ids:
+                    continue
+                if filter_tags:
+                    chal_tags = challenge.get('tags',[])
+                    if not any(tag in chal_tags for tag in filter_tags):
+                        continue
+
                 tasks.append({
                     "challenge": challenge,
                     "event": event_name,

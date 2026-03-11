@@ -1,3 +1,4 @@
+import sys
 import argparse
 from src.core.session import Session
 from src.core.scraper import fetch_and_save_challenges, scrape_all, get_new_challenge_ids 
@@ -9,26 +10,38 @@ def main():
     
     # Modes
     parser.add_argument("-n", "--new", action="store_true", help="Only download challenges not present in local challenges.json")
+    parser.add_argument("-i","--id",type=int, help="Download a specific challenge by ID")
+    parser.add_argument("-e","--event",type=str, help="Filter by event name")
+    parser.add_argument("-t", "--tags", nargs="+", help="Filter by one or more tags (-t web pwn)")
     args = parser.parse_args()
-    
-    session = Session(BASE_URL, EMAIL, PASSWORD)
+    try:
+
+        session = Session(BASE_URL, EMAIL, PASSWORD)
+    except Exception as e:
+        print(f"[-] Login failed: {e}")
+        sys.exit(1)
     
     new_challenges, old_challenges = fetch_and_save_challenges(session)
-
     
-    if args.new:
-        new_ids = get_new_challenge_ids(new_challenges, old_challenges)
-        if not new_ids:
-            print("[+] No new challenges found. Everything is up to date.")
-        else:
-            print(f"[*] Found {len(new_ids)} new challenges. Starting download...")
-            scrape_all(session, new_challenges)
-            
-    else:
-        # Default behavior (or if --all is flagged)
-        print("[*] Downloading all challenges...")
-        scrape_all(session, new_challenges)
+    target_ids = None
 
+    if args.id:
+        target_ids = {args.id}
+        print(f"[*] Focusing on ID: {args.id}")
+    elif args.new:
+        target_ids = get_new_challenge_ids(new_challenges, old_challenges)
+        if not target_ids:
+            print("[+] No new challenges found. Everything is up to date.")
+            return
+        print(f"[*] Found {len(target_ids)} new challenges.")
+    
+    scrape_all(
+        session=session,
+        challenge_data=new_challenges,
+        target_ids=target_ids,
+        filter_event=args.event,
+        filter_tags=args.tags,
+    )
 
 
 if __name__ == "__main__":

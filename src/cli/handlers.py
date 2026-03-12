@@ -1,12 +1,17 @@
 import sys
-from src.core.utils import print_separator
+from src.core.utils import print_separator, get_id_from_context
 from src.core.session import Session
 
 
 def handle_submit(session: Session, flag: str, challenge_id: int | None) -> None:
     if not challenge_id:
-        print("[-] --id is required when submitting a flag.")
-        sys.exit(1)
+        discovered_id = get_id_from_context()
+        if discovered_id:
+            challenge_id = discovered_id
+            print(f"[*] Detected Challenge ID {challenge_id} from local README.md")
+        else:
+            print("[-] No id found or provided with --id.")
+            sys.exit(1)
 
     print(f"[*] Submitting flag for challenge {challenge_id} ...")
     result = session.submit_flag(challenge_id, flag)

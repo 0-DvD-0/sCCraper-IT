@@ -35,6 +35,15 @@ def ensure_dir(path: str):
     if not os.path.exists(path):
         os.makedirs(path)    
 
+def get_id_from_context():
+    if os.path.exists("README.md"):
+        with open("README.md", "r") as f:
+            content = f.read()
+            # Cerca "id: 12345" o simile nel testo
+            match = re.search(r"id:\s*(\d+)", content)
+            if match:
+                return match.group(1)
+    return None
 
 def save_json(file_path: str, data: dict[str, Any]):
     """

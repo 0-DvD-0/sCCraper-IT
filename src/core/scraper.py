@@ -156,13 +156,25 @@ def process_challenge(
     ``README.md`` (and any files) into a dedicated subdirectory.
     """
     title = challenge["title"]
+    challenge_id = challenge["id"]
     challenge_dir = get_challenge_dir(output_dir, event, section, title)
     ensure_dir(challenge_dir)
 
-    challenge_data = fetch_challenge_data(session, challenge["id"])
+    challenge_data = fetch_challenge_data(session,challenge_id)
     description = challenge_data.get("description", "No description provided.")
 
-    md_lines = [f"# {title}", "", description, ""]
+    md_lines = [
+        "---",
+        f"id: {challenge_id}",
+        f"event: {event}",
+        f"section: {section}",
+        "---",
+        "",
+        f"# {title}",
+        "",
+        description,
+        ""
+    ]
 
     if session.group == "SUPERVISOR":
         hints = fetch_challenge_hints(session, challenge_data["hints"])

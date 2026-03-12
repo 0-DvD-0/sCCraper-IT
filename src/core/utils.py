@@ -42,3 +42,9 @@ def save_json(file_path: str, data: dict[str, Any]):
     """
     with open(file_path, "w") as f:
         json.dump(data, f, indent=2)
+
+def print_separator(label: str | None = None, width: int = 40) -> None:
+    print(f"\n{'-' * width}")
+    if label:
+        print(f" {label}")
+        print(f"{'-' * width}")

@@ -344,22 +344,16 @@ def display_challenges_tree(
     session: Session, output_dir: str, filtered_data: dict[str, Any]
 ):
     """
-    Disegna una dashboard ad albero nel terminale mostrando lo stato delle challenge.
-    Verifica l'esistenza fisica dei file per determinare lo stato 'Local'.
+    Draws the dashboard tree, now correctly identifying solved challenges.
     """
-    # Cerchiamo di ottenere le challenge risolte.
-    try:
-        solved_ids = set(session.get_solved_ids())
-    except AttributeError:
-        solved_ids = set()
-
+    solved_ids = set(session.get_solved_ids())
     print(f"\n\033[1;36m{'='*75}\033[0m")
     print(f"\033[1;36m{'🎯 SCCRAPER DASHBOARD':^75}\033[0m")
     print(f"\033[1;36m{'='*75}\033[0m\n")
 
     events = filtered_data.get("events", [])
     if not events:
-        print("\033[93mNessuna challenge trovata per i filtri specificati.\033[0m")
+        print("\033[93mNo challenges found.\033[0m")
         return
 
     for event in events:
@@ -383,17 +377,16 @@ def display_challenges_tree(
                 c_id = chal["id"]
                 title = chal["title"]
 
-                # 🚀 LA MODIFICA È QUI: Controlliamo il File System!
+                # Check File System
                 expected_dir = get_challenge_dir(
                     output_dir, event["name"], section["name"], title
                 )
-                expected_readme = os.path.join(expected_dir, "README.md")
-                is_downloaded = os.path.exists(expected_readme)
+                is_downloaded = os.path.exists(os.path.join(expected_dir, "README.md"))
 
-                # Imposta i Badge di Stato
+                # 🚀 Step 2: Check the set we just fetched
                 is_solved = c_id in solved_ids
-                is_downloaded_status = c_id in solved_ids  # Placeholder
 
+                # UI Badges
                 solve_tag = (
                     "\033[92m[✅ Solved]\033[0m"
                     if is_solved
@@ -405,7 +398,6 @@ def display_challenges_tree(
                     else "\033[90m[☁️ Cloud]\033[0m"
                 )
 
-                # Stampa la riga della challenge
                 print(
                     f"{chal_prefix}{solve_tag} {down_tag} \033[97m{title}\033[0m \033[90m(ID: {c_id})\033[0m"
                 )

@@ -1,5 +1,7 @@
 import json
 import os
+import stat
+import subprocess
 from typing import Any
 
 from tqdm import tqdm
@@ -100,6 +102,63 @@ def merge_challenge_data(
     return {**old_data, "events": list(merged_events.values())}
 
 
+def post_process_pwn_files(files_dir: str) -> str | None:
+    """
+    Scansiona la cartella dei file scaricati.
+    Se trova binari ELF, fa un chmod +x.
+    Se trova una libc, lancia pwninit.
+    Ritorna un messaggio di log per tqdm se pwninit è stato eseguito.
+    """
+    if not os.path.exists(files_dir):
+        return None
+
+    has_libc = False
+    binaries = []
+
+    # 1. Scansiona i file
+    for filename in os.listdir(files_dir):
+        filepath = os.path.join(files_dir, filename)
+        if not os.path.isfile(filepath):
+            continue
+
+        # Controllo se è una libc (es. libc.so.6)
+        if "libc" in filename.lower() and ".so" in filename.lower():
+            has_libc = True
+
+        # Controllo se è un binario ELF tramite i Magic Bytes
+        try:
+            with open(filepath, "rb") as f:
+                magic = f.read(4)
+                if magic == b"\x7fELF":
+                    binaries.append(filepath)
+                    # Applica i permessi di esecuzione (chmod +x)
+                    st = os.stat(filepath)
+                    os.chmod(
+                        filepath,
+                        st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH,
+                    )
+        except Exception:
+            pass
+
+    # 2. Lancia pwninit se abbiamo sia una libc che almeno un binario
+    if has_libc and binaries:
+        try:
+            # Eseguiamo pwninit direttamente dentro la cartella 'files'
+            result = subprocess.run(
+                ["pwninit"], cwd=files_dir, capture_output=True, text=True, check=True
+            )
+            return f"🔧 pwninit auto-patched {len(binaries)} binary/ies!"
+        except FileNotFoundError:
+            return "⚠️ pwninit skipped: command not found on system."
+        except subprocess.CalledProcessError as e:
+            return f"❌ pwninit failed: {e.stderr.strip()}"
+
+    elif binaries:
+        return f"⚡ Made {len(binaries)} ELF file(s) executable."
+
+    return None
+
+
 def fetch_and_save_challenges(
     session: Session,
     output_dir: str,
@@ -118,7 +177,7 @@ def fetch_and_save_challenges(
     )
 
     ensure_dir(output_dir)
-    file_path = os.path.join(output_dir, "challenges.json")
+    file_path = os.path.join(output_dir, ".challenges.json")
 
     old_data: dict[str, Any] | None = None
     if os.path.exists(file_path):
@@ -149,13 +208,6 @@ def fetch_and_save_challenges(
 def fetch_challenge_data(session: Session, challenge_id: int) -> dict[str, Any]:
     """Fetches challenge metadata from the API."""
     return session.api_get(f"challenges/{challenge_id}")
-
-
-def fetch_challenge_hints(
-    session: Session, challenge_hints: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
-    """Fetches every hint attached to a challenge."""
-    return [session.api_get(f"hint/{hint['id']}") for hint in challenge_hints]
 
 
 # ---------------------------------------------------------------------------
@@ -195,11 +247,12 @@ def process_challenge(
     event: str,
     section: str,
     output_dir: str,
-) -> None:
+) -> str | None:
     """
     Downloads metadata and attached files for a single challenge, writing a
     ``README.md`` (and any files) into a dedicated subdirectory.
     Now includes Frontmatter with persistent ID for context-aware submissions.
+    Returns a log message string if auto-patching occurred, otherwise None.
     """
     title = challenge["title"]
     challenge_id = challenge["id"]
@@ -223,20 +276,21 @@ def process_challenge(
         "",
     ]
 
-    if session.group == "SUPERVISOR":
-        hints = fetch_challenge_hints(session, challenge_data["hints"])
-        md_lines += ["", "## Hints"]
-        for i, hint in enumerate(hints):
-            md_lines.append(f"- **Hint {i}**: {hint.get('content', 'No content')}")
-
     md_file_path = os.path.join(challenge_dir, "README.md")
     with open(md_file_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(md_lines))
 
     files_dir = os.path.join(challenge_dir, "files")
-    for file in challenge_data["files"]:
+    downloaded_files = False
+
+    for file in challenge_data.get("files", []):
         ensure_dir(files_dir)
         session.download_file(file["url"], os.path.join(files_dir, file["name"]))
+        downloaded_files = True
+
+    if downloaded_files:
+        return post_process_pwn_files(files_dir)
+    return None
 
 
 def scrape_all(
@@ -265,18 +319,94 @@ def scrape_all(
     ]
 
     if not tasks:
-        print("[-] No challenges found to download.")
+        print("\n\033[94m[*] No new challenges found. Everything is up to date!\033[0m")
         return
 
-    pbar = tqdm(tasks, unit="chal")
+    print(f"\n\033[92m[*] Starting sync for {len(tasks)} challenges...\033[0m\n")
+
+    pbar = tqdm(tasks, unit="chal", bar_format="{l_bar}{bar:30}{r_bar}")
     for task in pbar:
-        pbar.set_description(
-            f"Downloading: {task['challenge']['title'][:20].ljust(20)}"
-        )
-        process_challenge(
+        pbar.set_description(f"📥 {task['challenge']['title'][:20].ljust(20)}")
+
+        log_msg = process_challenge(
             session,
             task["challenge"],
             task["event"],
             task["section"],
             output_dir,
         )
+
+        if log_msg:
+            tqdm.write(f"\033[90m  ↳ {task['challenge']['title']}: {log_msg}\033[0m")
+
+
+def display_challenges_tree(
+    session: Session, output_dir: str, filtered_data: dict[str, Any]
+):
+    """
+    Disegna una dashboard ad albero nel terminale mostrando lo stato delle challenge.
+    Verifica l'esistenza fisica dei file per determinare lo stato 'Local'.
+    """
+    # Cerchiamo di ottenere le challenge risolte.
+    try:
+        solved_ids = set(session.get_solved_ids())
+    except AttributeError:
+        solved_ids = set()
+
+    print(f"\n\033[1;36m{'='*75}\033[0m")
+    print(f"\033[1;36m{'🎯 SCCRAPER DASHBOARD':^75}\033[0m")
+    print(f"\033[1;36m{'='*75}\033[0m\n")
+
+    events = filtered_data.get("events", [])
+    if not events:
+        print("\033[93mNessuna challenge trovata per i filtri specificati.\033[0m")
+        return
+
+    for event in events:
+        print(f"\033[1;35m🏆 {event['name']}\033[0m")
+        sections = event.get("sections", [])
+
+        for i, section in enumerate(sections):
+            is_last_sec = i == len(sections) - 1
+            sec_prefix = "└── " if is_last_sec else "├── "
+            print(f"    {sec_prefix}\033[1;33m📁 {section['name']}\033[0m")
+
+            challenges = section.get("challenges", [])
+            for j, chal in enumerate(challenges):
+                is_last_chal = j == len(challenges) - 1
+                chal_prefix = (
+                    "    "
+                    + ("    " if is_last_sec else "│   ")
+                    + ("└── " if is_last_chal else "├── ")
+                )
+
+                c_id = chal["id"]
+                title = chal["title"]
+
+                # 🚀 LA MODIFICA È QUI: Controlliamo il File System!
+                expected_dir = get_challenge_dir(
+                    output_dir, event["name"], section["name"], title
+                )
+                expected_readme = os.path.join(expected_dir, "README.md")
+                is_downloaded = os.path.exists(expected_readme)
+
+                # Imposta i Badge di Stato
+                is_solved = c_id in solved_ids
+                is_downloaded_status = c_id in solved_ids  # Placeholder
+
+                solve_tag = (
+                    "\033[92m[✅ Solved]\033[0m"
+                    if is_solved
+                    else "\033[91m[❌ Unsolved]\033[0m"
+                )
+                down_tag = (
+                    "\033[94m[💾 Local]\033[0m"
+                    if is_downloaded
+                    else "\033[90m[☁️ Cloud]\033[0m"
+                )
+
+                # Stampa la riga della challenge
+                print(
+                    f"{chal_prefix}{solve_tag} {down_tag} \033[97m{title}\033[0m \033[90m(ID: {c_id})\033[0m"
+                )
+        print()

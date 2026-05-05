@@ -1,31 +1,32 @@
+import json
 import os
 import re
-import json
 from typing import Any
-
-
-DATA_DIR = os.path.join(os.path.dirname(__file__), "../../data")
 
 
 def clean_filename(title: str) -> str:
     """
     Cleans the title from trash so it can be safely used as a filename.
     """
-    return re.sub(r'[^a-zA-Z0-9_-]', '', title.replace(' ', '_'))
+    return re.sub(r"[^a-zA-Z0-9_-]", "", title.replace(" ", "_"))
 
 
-def get_data_dir():
+def get_data_dir() -> str:
     """
-    Returns directory path for the output data.
+    Restituisce la cartella corrente del terminale.
+    Questo fa comportare sccraper come un vero tool Linux.
     """
-    return os.path.join(DATA_DIR)
+    # ✅ MODIFICA QUI: Ora usa la directory corrente in cui hai lanciato il comando
+    return os.getcwd()
 
 
 def get_challenge_dir(base_dir: str, event: str, section: str, title: str) -> str:
     """
     Returns directory path for a challenge.
     """
-    return os.path.join(base_dir, 'challenges', clean_filename(event), clean_filename(section), clean_filename(title))
+    return os.path.join(
+        base_dir, clean_filename(event), clean_filename(section), clean_filename(title)
+    )
 
 
 def ensure_dir(path: str):
@@ -33,7 +34,8 @@ def ensure_dir(path: str):
     Create a directory if it doesn't exist.
     """
     if not os.path.exists(path):
-        os.makedirs(path)    
+        os.makedirs(path)
+
 
 def get_id_from_context():
     if os.path.exists("README.md"):
@@ -45,12 +47,14 @@ def get_id_from_context():
                 return match.group(1)
     return None
 
+
 def save_json(file_path: str, data: dict[str, Any]):
     """
     Saves the given dict to a json file in the given path
     """
     with open(file_path, "w") as f:
         json.dump(data, f, indent=2)
+
 
 def print_separator(label: str | None = None, width: int = 40) -> None:
     print(f"\n{'-' * width}")

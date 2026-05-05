@@ -2,6 +2,7 @@ import json
 import os
 import stat
 import subprocess
+import zipfile
 from typing import Any
 
 from tqdm import tqdm
@@ -239,6 +240,26 @@ def get_new_challenge_ids(
 # ---------------------------------------------------------------------------
 # Processing
 # ---------------------------------------------------------------------------
+def extract_zip_files(files_dir: str) -> int:
+    """
+    Scans the downloaded files for .zip archives and extracts them in place.
+    Returns the number of archives successfully extracted.
+    """
+    if not os.path.exists(files_dir):
+        return 0
+
+    extracted_count = 0
+    for filename in os.listdir(files_dir):
+        if filename.lower().endswith(".zip"):
+            filepath = os.path.join(files_dir, filename)
+            try:
+                with zipfile.ZipFile(filepath, "r") as zip_ref:
+                    zip_ref.extractall(files_dir)
+                extracted_count += 1
+                # Optional: os.remove(filepath) # Uncomment if you want to delete the .zip after
+            except zipfile.BadZipFile:
+                pass  # Skip broken archives silently
+    return extracted_count
 
 
 def process_challenge(
@@ -289,7 +310,23 @@ def process_challenge(
         downloaded_files = True
 
     if downloaded_files:
-        return post_process_pwn_files(files_dir)
+        logs = []
+
+        # 1. Extract ZIPs first
+        zips_extracted = extract_zip_files(files_dir)
+        if zips_extracted > 0:
+            logs.append(f"📦 Extracted {zips_extracted} ZIP(s)")
+
+        # 2. Run pwn processing (this will now catch files that were inside the ZIPs!)
+        pwn_log = post_process_pwn_files(files_dir)
+        if pwn_log:
+            logs.append(pwn_log)
+
+        # 3. Return the combined logs
+        if logs:
+            return " | ".join(logs)
+        return "✅ Files downloaded"
+
     return None
 
 

@@ -5,14 +5,11 @@ from dotenv import load_dotenv
 
 
 def initialize_config():
-    """Cerca il file .env in CWD o nella Home dell'utente."""
+    """Cerca il file .env ESCLUSIVAMENTE nella cartella corrente (CWD)."""
     cwd_env = Path.cwd() / ".env"
-    home_env = Path.home() / ".env"
 
     if cwd_env.exists():
         load_dotenv(cwd_env)
-    elif home_env.exists():
-        load_dotenv(home_env)
 
 
 # Inizializziamo il caricamento
@@ -29,9 +26,8 @@ if missing_vars:
         print(f"  \033[1m- {var}\033[0m")
 
     print(f"\n\033[94m[*] How to fix it:\033[0m")
-    print(
-        f"Create a file named \033[1m.env\033[0m in \033[3m{Path.cwd()}\033[0m or \033[3m{Path.home()}\033[0m"
-    )
+    # 🚀 FIX: Ora stampa SOLO la cartella in cui ti trovi
+    print(f"Create a file named \033[1m.env\033[0m in \033[3m{Path.cwd()}\033[0m")
     print(f"with the following content:\n")
 
     # Esempio di file .env pronto all'uso

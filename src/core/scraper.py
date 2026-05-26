@@ -2,6 +2,7 @@ import json
 import os
 import stat
 import subprocess
+import tarfile
 import zipfile
 from typing import Any
 
@@ -240,7 +241,7 @@ def get_new_challenge_ids(
 # ---------------------------------------------------------------------------
 # Processing
 # ---------------------------------------------------------------------------
-def extract_zip_files(files_dir: str) -> int:
+def extract_archives_files(files_dir: str) -> int:
     """
     Scans the downloaded files for .zip archives and extracts them in place.
     Returns the number of archives successfully extracted.
@@ -250,15 +251,22 @@ def extract_zip_files(files_dir: str) -> int:
 
     extracted_count = 0
     for filename in os.listdir(files_dir):
-        if filename.lower().endswith(".zip"):
-            filepath = os.path.join(files_dir, filename)
+        filepath = os.path.join(files_dir, filename)
+        lower_name = filename.lower()
+        if lower_name.endswith(".zip"):
             try:
                 with zipfile.ZipFile(filepath, "r") as zip_ref:
                     zip_ref.extractall(files_dir)
                 extracted_count += 1
-                # Optional: os.remove(filepath) # Uncomment if you want to delete the .zip after
-            except zipfile.BadZipFile:
-                pass  # Skip broken archives silently
+                os.remove(filepath)
+        elif lower_name.endswith(".tar") or lower_name.endswith(".tar.gz") or lower_name.endswith(".tgz"):
+            try:
+                with tarfile.open(filepath, 'r:*') as tar_ref:
+                    tar_ref.extractall(files_dir, filter='fully_trusted') # filter evita warning su Python moderni
+                extracted_count += 1
+            except Exception:
+                pass 
+
     return extracted_count
 
 
@@ -313,9 +321,9 @@ def process_challenge(
         logs = []
 
         # 1. Extract ZIPs first
-        zips_extracted = extract_zip_files(files_dir)
-        if zips_extracted > 0:
-            logs.append(f"📦 Extracted {zips_extracted} ZIP(s)")
+        archives_extracted = extract_archives_files(files_dir)
+        if archives_extracted > 0:
+            logs.append(f"📦 Extracted {archives_extracted} ZIP(s)")
 
         # 2. Run pwn processing (this will now catch files that were inside the ZIPs!)
         pwn_log = post_process_pwn_files(files_dir)

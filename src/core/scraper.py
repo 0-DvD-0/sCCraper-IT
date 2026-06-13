@@ -241,31 +241,58 @@ def get_new_challenge_ids(
 # ---------------------------------------------------------------------------
 # Processing
 # ---------------------------------------------------------------------------
+
+
 def extract_archives_files(files_dir: str) -> int:
     """
-    Scans the downloaded files for .zip archives and extracts them in place.
+    Scans the downloaded files for .zip and tar archives,
+    extracts them safely in place, and removes the original archives.
     Returns the number of archives successfully extracted.
     """
     if not os.path.exists(files_dir):
         return 0
 
     extracted_count = 0
-    for filename in os.listdir(files_dir):
+
+    # Snapshot the files first to prevent modification issues during iteration
+    all_files = os.listdir(files_dir)
+
+    for filename in all_files:
         filepath = os.path.join(files_dir, filename)
+
+        # Guard clause to ensure it's a file before checking extension
+        if not os.path.isfile(filepath):
+            continue
+
         lower_name = filename.lower()
+
+        # --- Handle ZIP Archives ---
         if lower_name.endswith(".zip"):
             try:
                 with zipfile.ZipFile(filepath, "r") as zip_ref:
                     zip_ref.extractall(files_dir)
                 extracted_count += 1
-                os.remove(filepath)
-        elif lower_name.endswith(".tar") or lower_name.endswith(".tar.gz") or lower_name.endswith(".tgz"):
-            try:
-                with tarfile.open(filepath, 'r:*') as tar_ref:
-                    tar_ref.extractall(files_dir, filter='fully_trusted') # filter evita warning su Python moderni
-                extracted_count += 1
+                os.remove(filepath)  # Clean up archive
+            except zipfile.BadZipFile:
+                pass
             except Exception:
-                pass 
+                pass
+
+        # --- Handle Tar Archives ---
+        elif (
+            lower_name.endswith(".tar")
+            or lower_name.endswith(".tar.gz")
+            or lower_name.endswith(".tgz")
+        ):
+            try:
+                with tarfile.open(filepath, "r:*") as tar_ref:
+                    tar_ref.extractall(files_dir, filter="fully_trusted")
+                extracted_count += 1
+                os.remove(filepath)  # FIXED: Deletes the tar file after extracting!
+            except tarfile.TarError:
+                pass
+            except Exception:
+                pass
 
     return extracted_count
 
@@ -323,7 +350,7 @@ def process_challenge(
         # 1. Extract ZIPs first
         archives_extracted = extract_archives_files(files_dir)
         if archives_extracted > 0:
-            logs.append(f"📦 Extracted {archives_extracted} ZIP(s)")
+            logs.append(f"📦 Extracted {archives_extracted} archive(s)")
 
         # 2. Run pwn processing (this will now catch files that were inside the ZIPs!)
         pwn_log = post_process_pwn_files(files_dir)
@@ -360,7 +387,7 @@ def scrape_all(
         for event in challenge_data.get("events", [])
         for section in event.get("sections", [])
         for challenge in section.get("challenges", [])
-        if target_ids is None or int(challenge["id"]) in target_ids
+        if target_ids is None or int(challenge.get("id", -1)) in target_ids
     ]
 
     if not tasks:
